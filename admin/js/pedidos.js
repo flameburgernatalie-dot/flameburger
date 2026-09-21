@@ -277,6 +277,34 @@ tarjeta.innerHTML = `
 
     </div>
 
+    ${
+        pedido.tipo_entrega === "delivery"
+        ?
+        `
+        <div class="order-info">
+
+            <span>
+                COSTO DE ENVÍO
+            </span>
+
+            <strong>
+                $${Number(
+                    pedido.costo_envio || 0
+                ).toLocaleString(
+                    "es-UY"
+                )}${
+                    pedido.distancia_km
+                    ? ` (${pedido.distancia_km} km)`
+                    : ""
+                }
+            </strong>
+
+        </div>
+        `
+        :
+        ""
+    }
+
     <div class="order-info">
 
         <span>
