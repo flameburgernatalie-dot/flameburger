@@ -1,4 +1,3 @@
-
 const API_PEDIDOS = "/api/pedidos";
 const API_PAGOS = "/api/pagos/crear";
 const API_CONFIGURACION = "/api/configuracion";
@@ -1119,6 +1118,46 @@ async function confirmarPedido() {
             return;
         }
 
+
+        // =================================================
+        // TARJETA (POS)
+        // =================================================
+
+        if (pago === "tarjeta_pos") {
+
+            localStorage.removeItem(
+                "flameCarrito"
+            );
+
+
+            const infoEnvio =
+                resultado.costo_envio > 0
+                    ? ` (incluye $${resultado.costo_envio} de envío, ${resultado.distancia_km} km)`
+                    : "";
+
+            mostrarMensaje(
+                `¡Pedido realizado correctamente! Pagás con tarjeta al recibir. Número de pedido: #${resultado.id}${infoEnvio}`,
+                "success"
+            );
+
+
+            if (confirmarPedidoBtn) {
+
+                confirmarPedidoBtn.textContent =
+                    "Pedido realizado";
+            }
+
+
+            setTimeout(() => {
+
+                window.location.href = "/";
+
+            }, 4000);
+
+
+            return;
+        }
+
     } catch (error) {
 
         console.error(
@@ -1242,4 +1281,3 @@ actualizarDireccion();
 procesarResultadoMercadoPago();
 
 cargarConfiguracionLocal();
-
