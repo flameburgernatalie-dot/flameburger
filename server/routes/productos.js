@@ -3,72 +3,28 @@ const router = express.Router();
 
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
+const { createClient } = require("@supabase/supabase-js");
 
 const pool = require("../database");
 
 
 // =====================================================
-// CARPETA DE IMÁGENES
+// CLIENTE DE SUPABASE (STORAGE)
 // =====================================================
 
-const uploadDir = path.join(
-    __dirname,
-    "../uploads"
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SECRET_KEY
 );
 
-if (!fs.existsSync(uploadDir)) {
-
-    fs.mkdirSync(
-        uploadDir,
-        {
-            recursive: true
-        }
-    );
-
-}
+const BUCKET = "productos";
 
 
 // =====================================================
-// CONFIGURACIÓN DE MULTER
+// CONFIGURACIÓN DE MULTER (EN MEMORIA, NO EN DISCO)
 // =====================================================
 
-const storage = multer.diskStorage({
-
-    destination: (req, file, cb) => {
-
-        cb(
-            null,
-            uploadDir
-        );
-
-    },
-
-    filename: (req, file, cb) => {
-
-        const extension =
-            path.extname(
-                file.originalname
-            ).toLowerCase();
-
-
-        const nombreArchivo =
-            Date.now() +
-            "-" +
-            Math.round(
-                Math.random() * 1000000000
-            ) +
-            extension;
-
-
-        cb(
-            null,
-            nombreArchivo
-        );
-
-    }
-
-});
+const storage = multer.memoryStorage();
 
 
 // =====================================================
@@ -134,6 +90,138 @@ const upload = multer({
     }
 
 });
+
+
+// =====================================================
+// FUNCIÓN: SUBIR IMAGEN A SUPABASE STORAGE
+// =====================================================
+
+async function subirImagenSupabase(
+    archivo
+) {
+
+    if (!archivo) {
+        return "";
+    }
+
+    const extension =
+        path.extname(
+            archivo.originalname
+        ).toLowerCase();
+
+    const nombreArchivo =
+        Date.now() +
+        "-" +
+        Math.round(
+            Math.random() * 1000000000
+        ) +
+        extension;
+
+    const { error } =
+        await supabase
+            .storage
+            .from(BUCKET)
+            .upload(
+                nombreArchivo,
+                archivo.buffer,
+                {
+                    contentType:
+                        archivo.mimetype,
+                    upsert:
+                        false
+                }
+            );
+
+    if (error) {
+
+        console.error(
+            "ERROR SUBIENDO IMAGEN A SUPABASE:",
+            error
+        );
+
+        throw new Error(
+            "No se pudo subir la imagen"
+        );
+
+    }
+
+    const { data } =
+        supabase
+            .storage
+            .from(BUCKET)
+            .getPublicUrl(
+                nombreArchivo
+            );
+
+    return data.publicUrl;
+
+}
+
+
+// =====================================================
+// FUNCIÓN: ELIMINAR IMAGEN DE SUPABASE STORAGE
+// =====================================================
+
+async function eliminarImagenSupabase(
+    imagenUrl
+) {
+
+    if (
+        !imagenUrl ||
+        !imagenUrl.includes(
+            `/storage/v1/object/public/${BUCKET}/`
+        )
+    ) {
+
+        return;
+
+    }
+
+    try {
+
+        const nombreArchivo =
+            imagenUrl.split(
+                `/storage/v1/object/public/${BUCKET}/`
+            )[1];
+
+        if (!nombreArchivo) {
+            return;
+        }
+
+        const { error } =
+            await supabase
+                .storage
+                .from(BUCKET)
+                .remove([
+                    nombreArchivo
+                ]);
+
+        if (error) {
+
+            console.error(
+                "No se pudo eliminar imagen de Supabase:",
+                error
+            );
+
+        } else {
+
+            console.log(
+                "Imagen eliminada de Supabase:",
+                nombreArchivo
+            );
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Error eliminando imagen de Supabase:",
+            error
+        );
+
+    }
+
+}
 
 
 // =====================================================
@@ -313,6 +401,8 @@ router.post(
             console.log(
                 "FILE:",
                 req.file
+                    ? req.file.originalname
+                    : "sin imagen"
             );
 
 
@@ -338,11 +428,6 @@ router.post(
                 nombre.trim() === ""
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -363,11 +448,6 @@ router.post(
                 Number(precio) <= 0
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -386,11 +466,6 @@ router.post(
                 !categoria_id ||
                 isNaN(categoria_id)
             ) {
-
-                eliminarArchivo(
-                    req.file
-                );
-
 
                 return res.status(400).json({
 
@@ -422,11 +497,6 @@ router.post(
                 categoria.rows.length === 0
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -438,16 +508,17 @@ router.post(
 
 
             // =========================================
-            // IMAGEN
+            // IMAGEN (SUBIR A SUPABASE STORAGE)
             // =========================================
 
             let imagen = "";
 
-
             if (req.file) {
 
                 imagen =
-                    `/uploads/${req.file.filename}`;
+                    await subirImagenSupabase(
+                        req.file
+                    );
 
             }
 
@@ -528,11 +599,6 @@ router.post(
             );
 
 
-            eliminarArchivo(
-                req.file
-            );
-
-
             res.status(500).json({
 
                 error:
@@ -585,11 +651,6 @@ router.put(
                 nombre.trim() === ""
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -610,11 +671,6 @@ router.put(
                 Number(precio) <= 0
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -633,11 +689,6 @@ router.put(
                 !categoria_id ||
                 isNaN(categoria_id)
             ) {
-
-                eliminarArchivo(
-                    req.file
-                );
-
 
                 return res.status(400).json({
 
@@ -667,11 +718,6 @@ router.put(
             if (
                 productoActual.rows.length === 0
             ) {
-
-                eliminarArchivo(
-                    req.file
-                );
-
 
                 return res.status(404).json({
 
@@ -707,11 +753,6 @@ router.put(
                 categoria.rows.length === 0
             ) {
 
-                eliminarArchivo(
-                    req.file
-                );
-
-
                 return res.status(400).json({
 
                     error:
@@ -731,7 +772,7 @@ router.put(
 
 
             // =========================================
-            // NUEVA IMAGEN
+            // NUEVA IMAGEN (SUBIR A SUPABASE STORAGE)
             // =========================================
 
             if (
@@ -739,14 +780,16 @@ router.put(
             ) {
 
                 imagen =
-                    `/uploads/${req.file.filename}`;
+                    await subirImagenSupabase(
+                        req.file
+                    );
 
 
                 // -----------------------------
                 // BORRAR IMAGEN ANTERIOR
                 // -----------------------------
 
-                eliminarImagenGuardada(
+                await eliminarImagenSupabase(
                     productoAnterior.imagen
                 );
 
@@ -818,11 +861,6 @@ router.put(
             console.error(
                 "ERROR EDITANDO PRODUCTO:",
                 error
-            );
-
-
-            eliminarArchivo(
-                req.file
             );
 
 
@@ -1032,7 +1070,7 @@ router.delete(
             // ELIMINAR IMAGEN
             // =========================================
 
-            eliminarImagenGuardada(
+            await eliminarImagenSupabase(
                 productoActual.imagen
             );
 
@@ -1084,121 +1122,6 @@ router.delete(
 
     }
 );
-
-
-// =====================================================
-// FUNCIÓN: ELIMINAR ARCHIVO SUBIDO
-// =====================================================
-
-function eliminarArchivo(
-    archivo
-) {
-
-    if (
-        !archivo ||
-        !archivo.path
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        if (
-            fs.existsSync(
-                archivo.path
-            )
-        ) {
-
-            fs.unlinkSync(
-                archivo.path
-            );
-
-        }
-
-    } catch (error) {
-
-        console.error(
-            "No se pudo eliminar archivo:",
-            error
-        );
-
-    }
-
-}
-
-
-// =====================================================
-// FUNCIÓN: ELIMINAR IMAGEN DE PRODUCTO
-// =====================================================
-
-function eliminarImagenGuardada(
-    imagen
-) {
-
-    if (
-        !imagen
-    ) {
-
-        return;
-
-    }
-
-
-    // Solo procesamos imágenes locales
-    if (
-        !imagen.startsWith(
-            "/uploads/"
-        )
-    ) {
-
-        return;
-
-    }
-
-
-    const ruta =
-        path.join(
-            __dirname,
-            "..",
-            imagen.replace(
-                /^\//,
-                ""
-            )
-        );
-
-
-    try {
-
-        if (
-            fs.existsSync(
-                ruta
-            )
-        ) {
-
-            fs.unlinkSync(
-                ruta
-            );
-
-            console.log(
-                "Imagen eliminada:",
-                ruta
-            );
-
-        }
-
-    } catch (error) {
-
-        console.error(
-            "No se pudo eliminar imagen:",
-            error
-        );
-
-    }
-
-}
 
 
 // =====================================================
