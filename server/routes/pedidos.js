@@ -167,7 +167,7 @@ try {
 
         }
 
-        distanciaKm = calcularDistanciaKm(
+        distanciaKm = await calcularDistanciaKm(
             Number(config.local_lat),
             Number(config.local_lng),
             lat,
