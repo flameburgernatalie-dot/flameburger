@@ -1270,6 +1270,26 @@ ventana.document.write(`
                         </div>
 
                     </div>
+
+                    <div class="fila">
+
+                        <div class="etiqueta">
+                            Envío
+                        </div>
+
+                        <div class="valor">
+                            $${Number(
+                                pedido.costo_envio || 0
+                            ).toLocaleString(
+                                "es-UY"
+                            )}${
+                                pedido.distancia_km
+                                ? ` (${pedido.distancia_km} km)`
+                                : ""
+                            }
+                        </div>
+
+                    </div>
                     `
                     :
                     ""
