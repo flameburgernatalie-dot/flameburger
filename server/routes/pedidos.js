@@ -94,7 +94,8 @@ try {
 
     const formasPagoPermitidas = [
         "efectivo",
-        "mercado_pago"
+        "mercado_pago",
+        "tarjeta_pos"
     ];
 
     const formaPago =
@@ -466,7 +467,7 @@ try {
 
                 // IMPORTANTE:
                 // Mercado Pago = en_proceso_pago
-                // Efectivo = nuevo
+                // Efectivo / Tarjeta POS = nuevo
                 estadoInicial,
 
                 total,
@@ -631,7 +632,9 @@ try {
                 p.estado,
                 p.total,
                 p.observaciones,
-                p.creado_en
+                p.creado_en,
+                p.distancia_km,
+                p.costo_envio
 
             FROM pedidos p
 
@@ -716,7 +719,9 @@ try {
                 p.estado,
                 p.total,
                 p.observaciones,
-                p.creado_en
+                p.creado_en,
+                p.distancia_km,
+                p.costo_envio
 
             FROM pedidos p
 
@@ -1082,4 +1087,3 @@ async (req, res) => {
 // =====================================================
 
 module.exports = router;
-
