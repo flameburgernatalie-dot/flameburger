@@ -3,6 +3,7 @@
 // Script común a todas las páginas:
 //   1) Sonido cuando entra un pedido nuevo
 //   2) Interruptor de Abierto/Cerrado en el sidebar
+//   3) Menú móvil (abrir/cerrar sidebar en celular)
 // =====================================================
 
 (function () {
@@ -301,6 +302,91 @@
         );
 
         cargarEstadoLocal(contenedor);
+
+    });
+
+
+    // =================================================
+    // MENÚ MÓVIL (BOTÓN ☰ PARA ABRIR/CERRAR EL SIDEBAR)
+    // =================================================
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+        const botonMenu =
+            document.querySelector(".mobile-menu");
+
+        const sidebar =
+            document.querySelector(".sidebar");
+
+        if (!botonMenu || !sidebar) return;
+
+        // Creamos el fondo oscuro que aparece detrás del
+        // menú y permite cerrarlo tocando afuera.
+        let overlay =
+            document.querySelector(".sidebar-overlay");
+
+        if (!overlay) {
+
+            overlay =
+                document.createElement("div");
+
+            overlay.className =
+                "sidebar-overlay";
+
+            document.body.appendChild(overlay);
+
+        }
+
+        function abrirMenu() {
+
+            sidebar.classList.add("open");
+
+            overlay.classList.add("show");
+
+        }
+
+        function cerrarMenu() {
+
+            sidebar.classList.remove("open");
+
+            overlay.classList.remove("show");
+
+        }
+
+        botonMenu.addEventListener(
+            "click",
+            () => {
+
+                if (sidebar.classList.contains("open")) {
+
+                    cerrarMenu();
+
+                } else {
+
+                    abrirMenu();
+
+                }
+
+            }
+        );
+
+        overlay.addEventListener(
+            "click",
+            cerrarMenu
+        );
+
+        // Si el usuario toca un link del menú, lo cerramos
+        // (si no, quedaría abierto tapando la página nueva).
+        sidebar.querySelectorAll("a").forEach(
+            (link) => {
+
+                link.addEventListener(
+                    "click",
+                    cerrarMenu
+                );
+
+            }
+        );
 
     });
 
