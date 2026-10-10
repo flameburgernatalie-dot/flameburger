@@ -7,6 +7,7 @@ require("dotenv").config();
 
 
 const pool = require("./database");
+const migrar = require("./utils/migrar");
 
 const productosRoutes = require("./routes/productos");
 const pedidosRoutes = require("./routes/pedidos");
@@ -498,7 +499,15 @@ const PORT =
 // INICIAR SERVIDOR
 // =====================================================
 
-app.listen(
+// Revisa cada 20 s los pagos de Mercado Pago que no se confirmaron
+setInterval(
+    pagosRoutes.reconciliarPedidosPendientes,
+    20000
+);
+
+migrar()
+    .catch((e) => console.error("❌ ERROR EN MIGRACIÓN:", e.message))
+    .then(() => app.listen(
     PORT,
     () => {
 
@@ -565,4 +574,4 @@ app.listen(
         console.log("");
 
     }
-);
+));

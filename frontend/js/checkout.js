@@ -1096,7 +1096,7 @@ async function confirmarPedido() {
                     : "";
 
             mostrarMensaje(
-                `¡Pedido realizado correctamente! Número de pedido: #${resultado.id}${infoEnvio}`,
+                `¡Pedido realizado correctamente! Número de pedido: #${resultado.numero ?? resultado.id}${infoEnvio}`,
                 "success"
             );
 
@@ -1136,7 +1136,7 @@ async function confirmarPedido() {
                     : "";
 
             mostrarMensaje(
-                `¡Pedido realizado correctamente! Pagás con tarjeta al recibir. Número de pedido: #${resultado.id}${infoEnvio}`,
+                `¡Pedido realizado correctamente! Pagás con tarjeta al recibir. Número de pedido: #${resultado.numero ?? resultado.id}${infoEnvio}`,
                 "success"
             );
 
@@ -1217,6 +1217,22 @@ function procesarResultadoMercadoPago() {
 
     if (!estado) {
         return;
+    }
+
+    // Al volver de Mercado Pago, el servidor verifica el pago directo
+    // con MP (no depende de que el webhook haya llegado).
+    const pedidoRetorno = parametros.get("external_reference");
+    const pagoRetorno = parametros.get("payment_id");
+
+    if (pedidoRetorno && estado !== "failure") {
+        fetch("/api/pagos/confirmar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                pedidoId: pedidoRetorno,
+                paymentId: pagoRetorno
+            })
+        }).catch(() => {});
     }
 
 

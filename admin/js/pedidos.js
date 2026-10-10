@@ -2,6 +2,7 @@ const API_PEDIDOS = "/api/pedidos";
 
 let pedidos = [];
 let filtroActual = "todos";
+let ultimaHuellaPedidos = "";
 
 const ordersList =
 document.getElementById("ordersList");
@@ -14,7 +15,7 @@ async function cargarPedidos() {
 try {
 
 const respuesta =
-    await fetch(API_PEDIDOS);
+    await fetch(API_PEDIDOS, { cache: "no-store" });
 
 if (!respuesta.ok) {
 
@@ -24,10 +25,26 @@ if (!respuesta.ok) {
 
 }
 
-pedidos =
+const datosNuevos =
     await respuesta.json();
 
+// Solo redibujamos si algo cambió: así la lista no parpadea
+// ni salta de posición cada vez que consulta al servidor.
+const huella = JSON.stringify(datosNuevos);
+
+if (huella === ultimaHuellaPedidos) {
+    return;
+}
+
+ultimaHuellaPedidos = huella;
+
+pedidos = datosNuevos;
+
+const scrollAnterior = window.scrollY;
+
 mostrarPedidos();
+
+window.scrollTo(0, scrollAnterior);
 
 } catch (error) {
 
@@ -180,7 +197,7 @@ tarjeta.innerHTML = `
 
         <div class="order-number">
 
-            Pedido #${pedido.id}
+            Pedido #${pedido.numero ?? pedido.id}
 
         </div>
 
@@ -744,7 +761,7 @@ if (!ventana) {
 }
 
 const numeroPedido =
-    pedido.id;
+    pedido.numero ?? pedido.id;
 
 const cliente =
     pedido.cliente_nombre ||
@@ -1438,7 +1455,7 @@ try {
 
 const confirmar =
     confirm(
-        `¿Cambiar el pedido #${pedidoId} a "${obtenerTextoEstado(nuevoEstado)}"?`
+        `¿Cambiar el pedido #${(pedidos.find(x => x.id == pedidoId) || {}).numero ?? pedidoId} a "${obtenerTextoEstado(nuevoEstado)}"?`
     );
 
 if (!confirmar) {
@@ -1727,8 +1744,15 @@ return div.innerHTML;
 
 setInterval(
 cargarPedidos,
-10000
+4000
 );
+
+// Los navegadores frenan los timers de las pestañas en segundo plano:
+// al volver a la pestaña actualizamos al instante.
+document.addEventListener("visibilitychange", () => {
+if (!document.hidden) cargarPedidos();
+});
+
 
 // =====================================================
 // INICIAR

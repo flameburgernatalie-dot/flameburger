@@ -21,7 +21,8 @@ try {
     } = req.query;
 
 
-    let condiciones = [];
+    // Los pedidos de Mercado Pago todavía sin pagar no son ventas
+    let condiciones = ["p.estado <> 'en_proceso_pago'"];
     let valores = [];
     let contador = 1;
 
@@ -128,7 +129,7 @@ try {
 
         condiciones.push(`
             (
-                CAST(p.id AS TEXT) ILIKE $${contador}
+                CAST(p.numero AS TEXT) ILIKE $${contador}
                 OR c.nombre ILIKE $${contador}
                 OR c.telefono ILIKE $${contador}
             )
@@ -156,6 +157,8 @@ try {
         SELECT
 
             p.id,
+
+            p.numero,
 
             p.tipo_entrega,
 
@@ -199,13 +202,13 @@ try {
 
             COALESCE(
                 SUM(p.total) FILTER (
-                    WHERE p.estado != 'cancelado'
+                    WHERE p.estado NOT IN ('cancelado', 'en_proceso_pago')
                 ),
                 0
             ) AS ventas,
 
             COUNT(*) FILTER (
-                WHERE p.estado != 'cancelado'
+                WHERE p.estado NOT IN ('cancelado', 'en_proceso_pago')
             ) AS pedidos,
 
             COUNT(*) FILTER (
