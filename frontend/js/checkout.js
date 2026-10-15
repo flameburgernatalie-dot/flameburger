@@ -2,6 +2,92 @@ const API_PEDIDOS = "/api/pedidos";
 const API_PAGOS = "/api/pagos/crear";
 const API_CONFIGURACION = "/api/configuracion";
 
+// =====================================================
+// CARTEL "PEDIDO REALIZADO CON ÉXITO"
+// Muestra el número de pedido y los datos del cliente.
+// =====================================================
+
+const NOMBRES_PAGO = {
+    efectivo: "Efectivo",
+    tarjeta_pos: "Tarjeta (POS al recibir)",
+    mercado_pago: "Mercado Pago (pagado)"
+};
+
+function mostrarCartelPedido(resultado, datos) {
+
+    const numero = resultado.numero ?? resultado.id;
+
+    const esDelivery = datos.entrega === "delivery";
+
+    const filasResumen = [
+        ["Nombre", datos.nombre],
+        ["Teléfono", datos.telefono],
+        [
+            "Entrega",
+            esDelivery
+                ? `Delivery a ${datos.direccion}`
+                : "Retiro en el local"
+        ]
+    ];
+
+    if (esDelivery) {
+        filasResumen.push([
+            "Envío",
+            Number(resultado.costo_envio) > 0
+                ? `$${resultado.costo_envio}`
+                : "Gratis"
+        ]);
+    }
+
+    filasResumen.push(
+        ["Total", `$${Number(resultado.total).toFixed(2)}`],
+        ["Pago", NOMBRES_PAGO[datos.pago] || datos.pago]
+    );
+
+    if (datos.comentarios) {
+        filasResumen.push(["Comentarios", datos.comentarios]);
+    }
+
+    const resumenHTML = `
+        <ul class="cartel-pedido-productos">
+            ${datos.productos
+                .map(
+                    (p) =>
+                        `<li>${escaparHTML(String(p.cantidad))}x ${escaparHTML(String(p.nombre))}</li>`
+                )
+                .join("")}
+        </ul>
+        <dl class="cartel-pedido-datos">
+            ${filasResumen
+                .map(
+                    ([k, v]) =>
+                        `<dt>${escaparHTML(k)}</dt><dd>${escaparHTML(String(v))}</dd>`
+                )
+                .join("")}
+        </dl>
+    `;
+
+    const overlay = document.createElement("div");
+
+    overlay.className = "cartel-pedido-overlay";
+
+    overlay.innerHTML = `
+        <div class="cartel-pedido" role="dialog" aria-modal="true">
+            <div class="cartel-pedido-icono">✅</div>
+            <h2>¡Tu pedido se realizó con éxito!</h2>
+            <p class="cartel-pedido-numero">
+                Número de pedido: <strong>#${escaparHTML(String(numero))}</strong>
+            </p>
+            <div class="cartel-pedido-resumen">
+                ${resumenHTML}
+            </div>
+            <a class="cartel-pedido-boton" href="/">Volver al menú</a>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+}
+
 const carrito = JSON.parse(localStorage.getItem("flameCarrito")) || [];
 
 // =====================================================
@@ -995,6 +1081,28 @@ async function confirmarPedido() {
 
         if (pago === "mercado_pago") {
 
+            // Se guardan los datos para mostrar el cartel al volver del pago
+            try {
+                localStorage.setItem(
+                    "flameDatosMP",
+                    JSON.stringify({
+                        resultado,
+                        datos: {
+                            nombre,
+                            telefono,
+                            direccion,
+                            comentarios,
+                            entrega,
+                            pago,
+                            productos: carrito.map((p) => ({
+                                nombre: p.nombre,
+                                cantidad: Number(p.cantidad)
+                            }))
+                        }
+                    })
+                );
+            } catch (e) {}
+
             mostrarMensaje(
                 "Generando pago con Mercado Pago...",
                 "success"
@@ -1108,11 +1216,18 @@ async function confirmarPedido() {
             }
 
 
-            setTimeout(() => {
-
-                window.location.href = "/";
-
-            }, 4000);
+            mostrarCartelPedido(resultado, {
+                nombre,
+                telefono,
+                direccion,
+                comentarios,
+                entrega,
+                pago,
+                productos: carrito.map((p) => ({
+                    nombre: p.nombre,
+                    cantidad: Number(p.cantidad)
+                }))
+            });
 
 
             return;
@@ -1148,11 +1263,18 @@ async function confirmarPedido() {
             }
 
 
-            setTimeout(() => {
-
-                window.location.href = "/";
-
-            }, 4000);
+            mostrarCartelPedido(resultado, {
+                nombre,
+                telefono,
+                direccion,
+                comentarios,
+                entrega,
+                pago,
+                productos: carrito.map((p) => ({
+                    nombre: p.nombre,
+                    cantidad: Number(p.cantidad)
+                }))
+            });
 
 
             return;
@@ -1204,7 +1326,40 @@ if (confirmarPedidoBtn) {
 // RESULTADO MERCADO PAGO
 // =====================================================
 
-function procesarResultadoMercadoPago() {
+// Cartel de pedido realizado al volver de Mercado Pago (pago aprobado)
+function mostrarCartelMercadoPago(pedidoId, confirmacion) {
+
+    try {
+
+        const guardado = JSON.parse(
+            localStorage.getItem("flameDatosMP") || "null"
+        );
+
+        if (
+            !guardado ||
+            !guardado.resultado ||
+            String(guardado.resultado.id) !== String(pedidoId)
+        ) {
+            return;
+        }
+
+        const numero = confirmacion && confirmacion.numero;
+
+        if (!numero) return;
+
+        // Se borran los datos guardados para no dejarlos en el navegador
+        localStorage.removeItem("flameDatosMP");
+        localStorage.removeItem("flamePedidoActual");
+
+        mostrarCartelPedido(
+            { ...guardado.resultado, numero },
+            guardado.datos
+        );
+
+    } catch (e) {}
+}
+
+async function procesarResultadoMercadoPago() {
 
     const parametros =
         new URLSearchParams(
@@ -1224,15 +1379,26 @@ function procesarResultadoMercadoPago() {
     const pedidoRetorno = parametros.get("external_reference");
     const pagoRetorno = parametros.get("payment_id");
 
+    let confirmacion = null;
+
     if (pedidoRetorno && estado !== "failure") {
-        fetch("/api/pagos/confirmar", {
+
+        const verificacion = fetch("/api/pagos/confirmar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 pedidoId: pedidoRetorno,
                 paymentId: pagoRetorno
             })
-        }).catch(() => {});
+        })
+            .then((r) => r.json())
+            .catch(() => null);
+
+        // Si el pago fue aprobado se espera la verificación para
+        // conocer el número de pedido; en los demás casos no.
+        if (estado === "success") {
+            confirmacion = await verificacion;
+        }
     }
 
 
@@ -1250,6 +1416,8 @@ function procesarResultadoMercadoPago() {
         localStorage.removeItem(
             "flameCarrito"
         );
+
+        mostrarCartelMercadoPago(pedidoRetorno, confirmacion);
 
         return;
     }
